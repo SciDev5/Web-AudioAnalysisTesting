@@ -1,27 +1,37 @@
-/**@type {HTMLCanvasElement}*/ var canvas;
-/**@type {CanvasRenderingContext2D}*/ var ctx;
-/**@type {number}*/ var width, height;
+import Drawer from "./drawer.js";
+
+/**@type {Drawer}*/ var spectrogramDrawer;
+/**@type {Drawer}*/ var oscilliscopeDrawer;
+/**@type {Drawer}*/ var oscilliscopeDrawer2D;
 
 /**@type {AudioContext}*/ var actx;
 /**@type {AnalyserNode}*/ var analyserNode;
-/**@type {AnalyserNode}*/ var micNode;
+/**@type {MediaStreamAudioSourceNode}*/ var micNode;
+/**@type {AnalyserNode}*/ var analyserNodeLChannel;
+/**@type {AnalyserNode}*/ var analyserNodeRChannel;
+
 
 function init() {
-    canvas = document.getElementById("cnv"); width = canvas.width; height = canvas.height;
-    ctx = canvas.getContext("2d");
+    spectrogramDrawer = new Drawer(document.getElementById("spectrogram"));
+    oscilliscopeDrawer = new Drawer(document.getElementById("oscilliscope"));
+    oscilliscopeDrawer2D = new Drawer(document.getElementById("oscilliscope-2d"));
 }
 async function actxInit(e) {
     removeEventListener("click",actxInit);
-    clearScreenAndTransforms();
+    spectrogramDrawer.clearScreenAndTransforms();
     if (!navigator.mediaDevices) {
         alert("Your browser does not support microphone use.");
         return;
     }
+    /**@type {MediaStream}*/
     var stream;
     
     try {
-        //stream = await navigator.mediaDevices.getUserMedia ({audio: true, video: false})
-        stream = await navigator.mediaDevices.getDisplayMedia({video:true, audio: true})
+        if (confirm("Press OK for microphone, Press CANCEL for screen capture."))
+            stream = await navigator.mediaDevices.getUserMedia ({audio: true, video: false})
+        else stream = await navigator.mediaDevices.getDisplayMedia({video:true, audio: true})
+
+        console.log(stream.getTracks().length)
     } catch (e) {
         console.error("Error opening microphone stream:",e);
         alert("Problem opening microphone stream. See console for details.")
@@ -32,76 +42,81 @@ async function actxInit(e) {
     analyserNode.fftSize = 4096;
     analyserNode.smoothingTimeConstant = 0.2;
 
-    micNode.connect(analyserNode);
+    var channelSplitterNode = actx.createChannelSplitter(2);
+    analyserNodeLChannel = actx.createAnalyser();
+    analyserNodeRChannel = actx.createAnalyser();
+
+    var gain = actx.createGain();
+    gain.gain.value = 0.5;
+
+    micNode.connect(gain);
+    gain.connect(analyserNode)
+    gain.connect(channelSplitterNode);
+    channelSplitterNode.connect(analyserNodeLChannel);
+    channelSplitterNode.connect(analyserNodeRChannel);
+    console.log(micNode.channelCount,gain.channelCount)
     console.log(analyserNode);
 }
 
 var f = 1;
 function loop() {
-    clearMatrixStack();
+    return;
+    console.log(actx)
+
+    spectrogramDrawer.clearMatrixStack();
+    oscilliscopeDrawer.clearScreenAndTransforms();
+    oscilliscopeDrawer2D.clearScreenAndTransforms();
+    var width = spectrogramDrawer.width, height = spectrogramDrawer.height;
 
     if (actx) {
         const nChunks = 750;
         const chunkRenderSize = height/nChunks;
-        ctx.drawImage(canvas,-chunkRenderSize,0);
+        spectrogramDrawer.ctx.drawImage(spectrogramDrawer.canvas,-chunkRenderSize,0);
 
         var data = getLogFFTData(nChunks,25*f,10000*f);
         var sortedData = data.map(v=>v).sort(), min = sortedData[0], max = sortedData[data.length-1];
+        min = -150; max = -10;
         data = data.map(v=>(v-min)/(max-min));
         for (var i = 0; i < height; i++) {
             //var color = `hsl(${Math.floor(360*data[i])},100%,50%)`;
             var color = `#${(0x010101*Math.floor(255*data[i])).toString(16)}`
-            fillRect(width-chunkRenderSize,height-(i+1)*chunkRenderSize,chunkRenderSize,chunkRenderSize,color);
+            spectrogramDrawer.fillRect(width-chunkRenderSize,height-(i+1)*chunkRenderSize,chunkRenderSize,chunkRenderSize,color);
         }
+
+        const nSamples = 1000;
+        const sampleWidth = width/nSamples;
+        var path = getWaveformData(nSamples);
+
+
+        for (var n = 0; n < 3; n++) {
+            oscilliscopeDrawer.ctx.beginPath();
+            for (var i = 0; i < path[n].length; i++)
+                oscilliscopeDrawer.ctx.lineTo(i*sampleWidth,(path[n][i]*0.5+0.5)*oscilliscopeDrawer.height);
+            oscilliscopeDrawer.ctx.strokeStyle = "#000000";
+            oscilliscopeDrawer.ctx.lineWidth = 2;
+            oscilliscopeDrawer.ctx.stroke();
+            oscilliscopeDrawer.ctx.closePath();
+        }
+
+
+        oscilliscopeDrawer2D.ctx.beginPath();
+        for (var i = 0; i < path[0].length; i++)
+            oscilliscopeDrawer2D.ctx.lineTo((path[1][i]*0.5+0.5)*oscilliscopeDrawer2D.width,(path[2][i]*0.5+0.5)*oscilliscopeDrawer2D.height);
+        oscilliscopeDrawer2D.ctx.strokeStyle = "#000000";
+        oscilliscopeDrawer2D.ctx.lineWidth = 2;
+        oscilliscopeDrawer2D.ctx.stroke();
+        oscilliscopeDrawer2D.ctx.closePath();
+        
     } else {
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.font = "50px monospace";
-        clearScreen();
-        fillRect(0,0,width,height,"#ffffff");
-        ctx.fillText("CLICK ANYWHERE TO START",width/2,height/2,width*0.8);
+        spectrogramDrawer.ctx.textAlign = "center";
+        spectrogramDrawer.ctx.textBaseline = "middle";
+        spectrogramDrawer.ctx.font = "50px monospace";
+        spectrogramDrawer.clearScreen();
+        spectrogramDrawer.fillRect(0,0,width,height,"#ffffff");
+        spectrogramDrawer.ctx.fillText("CLICK ANYWHERE TO START",width/2,height/2,width*0.8);
     }
 }
 
-
-// ------------- Drawing Helpers ------------- //
-
-
-/** The matrix stack, responsible for holding transforms to revert to. 
- * @type {DOMMatrix[]}
- */
-const matrixStack = [];
-/** Push the current transformation to the matrix stack. */
-function pushMatrix() { matrixStack.push(ctx.getTransform()); }
-/** Revert the most recent pushed transformation and remove it from the stack. */
-function popMatrix() { ctx.setTransform(matrixStack.splice(matrixStack.length-1)[0]); }
-/** Clear the matrix stack. (DOES NOT CHANGE APPLIED TRANSFORM) */
-function clearMatrixStack() { matrixStack.splice(0); }
-/** Clear all transformations and the matrix stack. */
-function clearScreenAndTransforms() { clearMatrixStack(); clearScreen(); ctx.resetTransform(); }
-
-/** Clears everything on the canvas but leaves the transformation unchanged */
-function clearScreen() {
-    pushMatrix();
-    ctx.resetTransform();
-    ctx.clearRect(0,0,width,height);
-    popMatrix();
-}
-
-/**
- * Draw a rectangle with a specific fill color.
- * @param {number} x The X-coordinate of the top-left corner of the rectangle.
- * @param {number} y The Y-coordinate of the top-left corner of the rectangle.
- * @param {number} w The width of the rectangle.
- * @param {number} h The height of the rectangle.
- * @param {string} fill The solid fill color of the rectangle.
- */
-function fillRect(x,y,w,h,fill) {
-    var oldFillStyle = ctx.fillStyle;
-    ctx.fillStyle = fill;
-    ctx.fillRect(x,y,w,h);
-    ctx.fillStyle = oldFillStyle;
-}
 
 
 // ------------- Math Utilities ------------- //
@@ -153,6 +168,13 @@ function getLogFFTData(nDivs,fMin,fMax,dolog) {
 
     var minValue = logData.filter(v=>v!=0).sort(); minValue=minValue[0];
     return logData.map(v=>v==0?minValue:v);
+}
+function getWaveformData(nSamples) {
+    var dataC = new Float32Array(nSamples), dataL = new Float32Array(nSamples), dataR = new Float32Array(nSamples);
+    analyserNode.getFloatTimeDomainData(dataC);
+    analyserNodeLChannel.getFloatTimeDomainData(dataL);
+    analyserNodeRChannel.getFloatTimeDomainData(dataR);
+    return [dataC,dataL,dataR];
 }
 
 // ------------- Events ------------- //

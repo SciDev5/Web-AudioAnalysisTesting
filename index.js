@@ -18,12 +18,14 @@ import Color from "./color.js";
 /**@type {Color[]}*/ var intensityColorMap = [0x000000,0x770000,0xcccc00,0xffff77,0xffffff].map(v=>new Color(v));
 
 function init() {
+    console.log("init");
     spectrogramDrawer = new Drawer(document.getElementById("spectrogram"));
     oscilliscopeDrawer = new Drawer(document.getElementById("oscilliscope"));
     oscilliscopeDrawer2D = new Drawer(document.getElementById("oscilliscope-2d"));
     gainInput = document.getElementById("gain-slider");
 }
 async function actxInit(e) {
+    console.log("init audio");
     removeEventListener("click",actxInit);
     spectrogramDrawer.clearScreenAndTransforms();
     if (!navigator.mediaDevices) {

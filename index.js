@@ -3,7 +3,7 @@ import Color from "./color.js";
 
 /**@type {Drawer}*/ var spectrogramDrawer;
 /**@type {Drawer}*/ var oscilliscopeDrawer;
-/**@type {Drawer}*/ var oscilliscopeDrawer2D;
+// /**@type {Drawer}*/ var oscilliscopeDrawer2D;
 
 /**@type {AudioContext}*/ var actx;
 /**@type {AnalyserNode}*/ var analyserNode;
@@ -15,13 +15,15 @@ import Color from "./color.js";
 /**@type {HTMLInputElement}*/ var gainInput;
 
 /**@type {Color}*/ var bgColor = new Color(0x000000);
-/**@type {Color[]}*/ var intensityColorMap = [0x000000,0x770000,0xcccc00,0xffff77,0xffffff].map(v=>new Color(v));
+/**@type {Color[]}*/ var intensityColorMap = [0x020024,0x101358,0x090979,0x023af2,0x0cbbd0,0x0ff486,0xb5eb51,0xfff14b,0xffa369,0xffc0c0,0xffffff].map(v=>new Color(v));
+
+
 
 function init() {
     console.log("init");
     spectrogramDrawer = new Drawer(document.getElementById("spectrogram"));
     oscilliscopeDrawer = new Drawer(document.getElementById("oscilliscope"));
-    oscilliscopeDrawer2D = new Drawer(document.getElementById("oscilliscope-2d"));
+    //oscilliscopeDrawer2D = new Drawer(document.getElementById("oscilliscope-2d"));
     gainInput = document.getElementById("gain-slider");
 }
 async function actxInit(e) {
@@ -50,13 +52,14 @@ async function actxInit(e) {
     analyserNode = actx.createAnalyser();
     analyserNode.fftSize = 4096;
     analyserNode.smoothingTimeConstant = 0.2;
+    analyserNode.maxDecibels = 40;
 
     var channelSplitterNode = actx.createChannelSplitter(2);
     analyserNodeLChannel = actx.createAnalyser();
     analyserNodeRChannel = actx.createAnalyser();
 
     volumeGainNode = actx.createGain();
-    volumeGainNode.gain.value = 0.5;
+    volumeGainNode.gain.value = 1;
 
     micNode.connect(volumeGainNode);
     volumeGainNode.connect(analyserNode)
@@ -64,7 +67,7 @@ async function actxInit(e) {
     channelSplitterNode.connect(analyserNodeLChannel);
     channelSplitterNode.connect(analyserNodeRChannel);
     //console.log(micNode.channelCount,gain.channelCount)
-    //console.log(analyserNode);
+    console.log(analyserNode);
 }
 
 var f = 1;
@@ -73,11 +76,11 @@ function loop() {
 
     spectrogramDrawer.clearMatrixStack();
     oscilliscopeDrawer.clearScreenAndTransforms();
-    oscilliscopeDrawer2D.clearScreenAndTransforms();
+    //oscilliscopeDrawer2D.clearScreenAndTransforms();
     var width = spectrogramDrawer.width, height = spectrogramDrawer.height;
 
     if (actx) {
-        volumeGainNode.gain.value = gainInput.value;
+        volumeGainNode.gain.value = Math.pow(2,gainInput.value);
 
         const nChunks = 750;
         const chunkRenderSize = height/nChunks;
@@ -85,11 +88,12 @@ function loop() {
 
         var data = getLogFFTData(nChunks,25*f,10000*f);
         var sortedData = data.map(v=>v).sort(), min = sortedData[0], max = sortedData[data.length-1];
-        min = -150; max = -10;
+        min = -200; max = 30;
         data = data.map(v=>(v-min)/(max-min));
         for (var i = 0; i < height; i++) {
             //var color = `hsl(${Math.floor(360*data[i])},100%,50%)`;
-            var color = new Color(Math.floor(255*data[i]),Math.floor(255*data[i]),Math.floor(255*data[i])).hex
+            //var color = new Color(Math.floor(255*data[i]),Math.floor(255*data[i]),Math.floor(255*data[i])).hex
+            var color = getIntensityColor(data[i]).hex;
             spectrogramDrawer.fillRect(width-chunkRenderSize,height-(i+1)*chunkRenderSize,chunkRenderSize,chunkRenderSize,color);
         }
 
@@ -98,17 +102,19 @@ function loop() {
         var path = getWaveformData(nSamples);
 
         oscilliscopeDrawer.fillRect(0,0,oscilliscopeDrawer.width,oscilliscopeDrawer.height,bgColor.hex);
-        for (var n = 0; n < 3; n++) {
+        var risingEdge = 0; for (var i = 1; i < path[0].length; i++) if (path[0][i-1]<0 && path[0][i]>=0) {risingEdge=i;break;}
+        for (var n = 0; n < 1; n++) {
             oscilliscopeDrawer.ctx.beginPath();
             for (var i = 0; i < path[n].length; i++)
-                oscilliscopeDrawer.ctx.lineTo(i*sampleWidth,(path[n][i]*0.5+0.5)*oscilliscopeDrawer.height);
-            oscilliscopeDrawer.ctx.strokeStyle = getIntensityColor(([1,0.2,0.2])[n]);
+                oscilliscopeDrawer.ctx.lineTo((i-risingEdge)*sampleWidth,(-path[n][i]*0.5+0.5)*oscilliscopeDrawer.height);
+            oscilliscopeDrawer.ctx.strokeStyle = (["#ffffff","#777777","#777777"])[n];
             oscilliscopeDrawer.ctx.lineWidth = 2;
             oscilliscopeDrawer.ctx.stroke();
             oscilliscopeDrawer.ctx.closePath();
         }
 
 
+        /*
         oscilliscopeDrawer2D.fillRect(0,0,oscilliscopeDrawer.width,oscilliscopeDrawer.height,bgColor.hex);
         oscilliscopeDrawer2D.ctx.beginPath();
         for (var i = 0; i < path[0].length; i++)
@@ -117,6 +123,7 @@ function loop() {
         oscilliscopeDrawer2D.ctx.lineWidth = 2;
         oscilliscopeDrawer2D.ctx.stroke();
         oscilliscopeDrawer2D.ctx.closePath();
+        */
         
     } else {
         spectrogramDrawer.ctx.textAlign = "center";
@@ -126,6 +133,11 @@ function loop() {
         spectrogramDrawer.fillRect(0,0,width,height,bgColor.hex);
         spectrogramDrawer.ctx.fillStyle = "#ffffff";
         spectrogramDrawer.ctx.fillText("CLICK ANYWHERE TO START",width/2,height/2,width*0.8);
+
+        for (var i = 0; i < height; i++) {
+            var color = getIntensityColor(i/(height-1)).hex;
+            spectrogramDrawer.fillRect(width-20,height-(i+1),20,1,color);
+        }
     }
 }
 
@@ -190,7 +202,19 @@ function getWaveformData(nSamples) {
 }
 
 function getIntensityColor(fac) {
-    return new Color(Math.floor(255*fac),Math.floor(255*fac),Math.floor(255*fac)).hex
+    var h = (0.6-0.75*fac**4+1)%1;
+    var s = 1-fac**7;
+    var v = fac**0.7;
+
+    return Color.hsv(h,s,v);
+    
+    var k = Math.min(1,Math.max(0,fac)) * (intensityColorMap.length-1);
+    var il = Math.floor(k), ih = il+1; k -= il;
+
+    if (k == 0) return intensityColorMap[il];
+    return Color.mix(intensityColorMap[il],intensityColorMap[ih],k);
+
+    return new Color(Math.floor(255*fac),Math.floor(255*fac),Math.floor(255*fac)).hex;
 }
 
 // ------------- Events ------------- //

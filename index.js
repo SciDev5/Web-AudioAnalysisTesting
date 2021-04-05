@@ -8,9 +8,11 @@ import Color from "./color.js";
 /**@type {AudioContext}*/ var actx;
 /**@type {AnalyserNode}*/ var analyserNode;
 /**@type {MediaStreamAudioSourceNode}*/ var micNode;
+/**@type {GainNode}*/ var volumeGainNode;
 /**@type {AnalyserNode}*/ var analyserNodeLChannel;
 /**@type {AnalyserNode}*/ var analyserNodeRChannel;
 
+/**@type {HTMLInputElement}*/ var gainInput;
 
 /**@type {Color}*/ var bgColor = new Color(0x000000);
 /**@type {Color[]}*/ var intensityColorMap = [0x000000,0x770000,0xcccc00,0xffff77,0xffffff].map(v=>new Color(v));
@@ -19,6 +21,7 @@ function init() {
     spectrogramDrawer = new Drawer(document.getElementById("spectrogram"));
     oscilliscopeDrawer = new Drawer(document.getElementById("oscilliscope"));
     oscilliscopeDrawer2D = new Drawer(document.getElementById("oscilliscope-2d"));
+    gainInput = document.getElementById("gain-slider");
 }
 async function actxInit(e) {
     removeEventListener("click",actxInit);
@@ -35,7 +38,7 @@ async function actxInit(e) {
             stream = await navigator.mediaDevices.getUserMedia ({audio: true, video: false})
         else stream = await navigator.mediaDevices.getDisplayMedia({video:true, audio: true})
 
-        console.log(stream.getTracks().length)
+        //console.log(stream.getTracks().length)
     } catch (e) {
         console.error("Error opening microphone stream:",e);
         alert("Problem opening microphone stream. See console for details.")
@@ -50,16 +53,16 @@ async function actxInit(e) {
     analyserNodeLChannel = actx.createAnalyser();
     analyserNodeRChannel = actx.createAnalyser();
 
-    var gain = actx.createGain();
-    gain.gain.value = 0.5;
+    volumeGainNode = actx.createGain();
+    volumeGainNode.gain.value = 0.5;
 
-    micNode.connect(gain);
-    gain.connect(analyserNode)
-    gain.connect(channelSplitterNode);
+    micNode.connect(volumeGainNode);
+    volumeGainNode.connect(analyserNode)
+    volumeGainNode.connect(channelSplitterNode);
     channelSplitterNode.connect(analyserNodeLChannel);
     channelSplitterNode.connect(analyserNodeRChannel);
-    console.log(micNode.channelCount,gain.channelCount)
-    console.log(analyserNode);
+    //console.log(micNode.channelCount,gain.channelCount)
+    //console.log(analyserNode);
 }
 
 var f = 1;
@@ -72,6 +75,8 @@ function loop() {
     var width = spectrogramDrawer.width, height = spectrogramDrawer.height;
 
     if (actx) {
+        volumeGainNode.gain.value = gainInput.value;
+
         const nChunks = 750;
         const chunkRenderSize = height/nChunks;
         spectrogramDrawer.ctx.drawImage(spectrogramDrawer.canvas,-chunkRenderSize,0);

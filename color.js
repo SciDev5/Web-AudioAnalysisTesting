@@ -21,7 +21,8 @@ class Color {
     }
 
     get hex() {
-        var s = (((Math.floor(this.r)&0xff)<<16)|((Math.floor(this.g)&0xff)<<8)|((Math.floor(this.b))&0xff)).toString(16);
+        var clampFloor = v=>Math.max(0,Math.min(255,Math.floor(v)));
+        var s = (((clampFloor(this.r)&0xff)<<16)|((clampFloor(this.g)&0xff)<<8)|((clampFloor(this.b))&0xff)).toString(16);
         while (s.length < 6) s = "0"+s;
         return "#"+s;
     }

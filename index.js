@@ -1,4 +1,5 @@
 import Drawer from "./drawer.js";
+import Color from "./color.js";
 
 /**@type {Drawer}*/ var spectrogramDrawer;
 /**@type {Drawer}*/ var oscilliscopeDrawer;
@@ -10,6 +11,9 @@ import Drawer from "./drawer.js";
 /**@type {AnalyserNode}*/ var analyserNodeLChannel;
 /**@type {AnalyserNode}*/ var analyserNodeRChannel;
 
+
+/**@type {Color}*/ var bgColor = new Color(0x000000);
+/**@type {Color[]}*/ var intensityColorMap = [0x000000,0x770000,0xcccc00,0xffff77,0xffffff].map(v=>new Color(v));
 
 function init() {
     spectrogramDrawer = new Drawer(document.getElementById("spectrogram"));
@@ -60,8 +64,7 @@ async function actxInit(e) {
 
 var f = 1;
 function loop() {
-    return;
-    console.log(actx)
+    document.body.style.background = bgColor.hex;
 
     spectrogramDrawer.clearMatrixStack();
     oscilliscopeDrawer.clearScreenAndTransforms();
@@ -79,7 +82,7 @@ function loop() {
         data = data.map(v=>(v-min)/(max-min));
         for (var i = 0; i < height; i++) {
             //var color = `hsl(${Math.floor(360*data[i])},100%,50%)`;
-            var color = `#${(0x010101*Math.floor(255*data[i])).toString(16)}`
+            var color = new Color(Math.floor(255*data[i]),Math.floor(255*data[i]),Math.floor(255*data[i])).hex
             spectrogramDrawer.fillRect(width-chunkRenderSize,height-(i+1)*chunkRenderSize,chunkRenderSize,chunkRenderSize,color);
         }
 
@@ -87,22 +90,23 @@ function loop() {
         const sampleWidth = width/nSamples;
         var path = getWaveformData(nSamples);
 
-
+        oscilliscopeDrawer.fillRect(0,0,oscilliscopeDrawer.width,oscilliscopeDrawer.height,bgColor.hex);
         for (var n = 0; n < 3; n++) {
             oscilliscopeDrawer.ctx.beginPath();
             for (var i = 0; i < path[n].length; i++)
                 oscilliscopeDrawer.ctx.lineTo(i*sampleWidth,(path[n][i]*0.5+0.5)*oscilliscopeDrawer.height);
-            oscilliscopeDrawer.ctx.strokeStyle = "#000000";
+            oscilliscopeDrawer.ctx.strokeStyle = getIntensityColor(([1,0.2,0.2])[n]);
             oscilliscopeDrawer.ctx.lineWidth = 2;
             oscilliscopeDrawer.ctx.stroke();
             oscilliscopeDrawer.ctx.closePath();
         }
 
 
+        oscilliscopeDrawer2D.fillRect(0,0,oscilliscopeDrawer.width,oscilliscopeDrawer.height,bgColor.hex);
         oscilliscopeDrawer2D.ctx.beginPath();
         for (var i = 0; i < path[0].length; i++)
             oscilliscopeDrawer2D.ctx.lineTo((path[1][i]*0.5+0.5)*oscilliscopeDrawer2D.width,(path[2][i]*0.5+0.5)*oscilliscopeDrawer2D.height);
-        oscilliscopeDrawer2D.ctx.strokeStyle = "#000000";
+        oscilliscopeDrawer2D.ctx.strokeStyle = getIntensityColor(1);
         oscilliscopeDrawer2D.ctx.lineWidth = 2;
         oscilliscopeDrawer2D.ctx.stroke();
         oscilliscopeDrawer2D.ctx.closePath();
@@ -112,7 +116,8 @@ function loop() {
         spectrogramDrawer.ctx.textBaseline = "middle";
         spectrogramDrawer.ctx.font = "50px monospace";
         spectrogramDrawer.clearScreen();
-        spectrogramDrawer.fillRect(0,0,width,height,"#ffffff");
+        spectrogramDrawer.fillRect(0,0,width,height,bgColor.hex);
+        spectrogramDrawer.ctx.fillStyle = "#ffffff";
         spectrogramDrawer.ctx.fillText("CLICK ANYWHERE TO START",width/2,height/2,width*0.8);
     }
 }
@@ -175,6 +180,10 @@ function getWaveformData(nSamples) {
     analyserNodeLChannel.getFloatTimeDomainData(dataL);
     analyserNodeRChannel.getFloatTimeDomainData(dataR);
     return [dataC,dataL,dataR];
+}
+
+function getIntensityColor(fac) {
+    return new Color(Math.floor(255*fac),Math.floor(255*fac),Math.floor(255*fac)).hex
 }
 
 // ------------- Events ------------- //

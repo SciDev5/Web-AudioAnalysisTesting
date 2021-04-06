@@ -12,7 +12,9 @@ import Color from "./color.js";
 /**@type {AnalyserNode}*/ var analyserNodeLChannel;
 /**@type {AnalyserNode}*/ var analyserNodeRChannel;
 
-/**@type {HTMLInputElement}*/ var gainInput;
+/**@type {HTMLInputElement}*/ var specGainInput;
+/**@type {HTMLInputElement}*/ var specRangeInput;
+/**@type {HTMLInputElement}*/ var oscGainInput;
 
 /**@type {Color}*/ var bgColor = new Color(0x000000);
 /**@type {Color[]}*/ var intensityColorMap = [0x020024,0x101358,0x090979,0x023af2,0x0cbbd0,0x0ff486,0xb5eb51,0xfff14b,0xffa369,0xffc0c0,0xffffff].map(v=>new Color(v));
@@ -24,7 +26,9 @@ function init() {
     spectrogramDrawer = new Drawer(document.getElementById("spectrogram"));
     oscilliscopeDrawer = new Drawer(document.getElementById("oscilliscope"));
     //oscilliscopeDrawer2D = new Drawer(document.getElementById("oscilliscope-2d"));
-    gainInput = document.getElementById("gain-slider");
+    specGainInput = document.getElementById("spec-gain-slider");
+    specRangeInput = document.getElementById("spec-range-slider");
+    oscGainInput = document.getElementById("osc-gain-slider");
 }
 async function actxInit(e) {
     console.log("init audio");
@@ -80,16 +84,16 @@ function loop() {
     var width = spectrogramDrawer.width, height = spectrogramDrawer.height;
 
     if (actx) {
-        volumeGainNode.gain.value = Math.pow(2,gainInput.value);
 
         const nChunks = 750;
         const chunkRenderSize = height/nChunks;
         spectrogramDrawer.ctx.drawImage(spectrogramDrawer.canvas,-chunkRenderSize,0);
 
         var data = getLogFFTData(nChunks,25*f,10000*f);
+        var rangeScale = parseFloat(specRangeInput.value), powerScale = parseFloat(specGainInput.value);
         var sortedData = data.map(v=>v).sort(), min = sortedData[0], max = sortedData[data.length-1];
-        min = -200; max = 30;
-        data = data.map(v=>(v-min)/(max-min));
+        min = -200+rangeScale; max = 30;
+        data = data.map(v=>v+powerScale).map(v=>(v-min)/(max-min));
         for (var i = 0; i < height; i++) {
             //var color = `hsl(${Math.floor(360*data[i])},100%,50%)`;
             //var color = new Color(Math.floor(255*data[i]),Math.floor(255*data[i]),Math.floor(255*data[i])).hex
@@ -100,13 +104,14 @@ function loop() {
         const nSamples = 1000;
         const sampleWidth = width/nSamples;
         var path = getWaveformData(nSamples);
+        var oscGain = 10**oscGainInput.value;
 
         oscilliscopeDrawer.fillRect(0,0,oscilliscopeDrawer.width,oscilliscopeDrawer.height,bgColor.hex);
         var risingEdge = 0; for (var i = 1; i < path[0].length; i++) if (path[0][i-1]<0 && path[0][i]>=0) {risingEdge=i;break;}
         for (var n = 0; n < 1; n++) {
             oscilliscopeDrawer.ctx.beginPath();
             for (var i = 0; i < path[n].length; i++)
-                oscilliscopeDrawer.ctx.lineTo((i-risingEdge)*sampleWidth,(-path[n][i]*0.5+0.5)*oscilliscopeDrawer.height);
+                oscilliscopeDrawer.ctx.lineTo((i-risingEdge)*sampleWidth,(-path[n][i]*0.5*oscGain+0.5)*oscilliscopeDrawer.height);
             oscilliscopeDrawer.ctx.strokeStyle = (["#ffffff","#777777","#777777"])[n];
             oscilliscopeDrawer.ctx.lineWidth = 2;
             oscilliscopeDrawer.ctx.stroke();

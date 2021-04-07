@@ -94,7 +94,7 @@ function loop() {
         var sortedData = data.map(v=>v).sort(), min = sortedData[0], max = sortedData[data.length-1];
         min = -200+rangeScale; max = 30;
         data = data.map(v=>v+powerScale).map(v=>(v-min)/(max-min));
-        for (var i = 0; i < height; i++) {
+        for (var i = 0; i < nChunks; i++) {
             //var color = `hsl(${Math.floor(360*data[i])},100%,50%)`;
             //var color = new Color(Math.floor(255*data[i]),Math.floor(255*data[i]),Math.floor(255*data[i])).hex
             var color = getIntensityColor(data[i]).hex;
@@ -207,19 +207,11 @@ function getWaveformData(nSamples) {
 }
 
 function getIntensityColor(fac) {
-    var h = (0.6-0.75*fac**4+1)%1;
-    var s = 1-fac**7;
-    var v = fac**0.7;
-
+    var k = Math.max(0,Math.min(1,fac));
+    var h = (0.6-0.75*k**4+1)%1;
+    var s = 1-k**7;
+    var v = k**0.7;
     return Color.hsv(h,s,v);
-    
-    var k = Math.min(1,Math.max(0,fac)) * (intensityColorMap.length-1);
-    var il = Math.floor(k), ih = il+1; k -= il;
-
-    if (k == 0) return intensityColorMap[il];
-    return Color.mix(intensityColorMap[il],intensityColorMap[ih],k);
-
-    return new Color(Math.floor(255*fac),Math.floor(255*fac),Math.floor(255*fac)).hex;
 }
 
 // ------------- Events ------------- //

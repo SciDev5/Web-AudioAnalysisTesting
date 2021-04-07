@@ -6,12 +6,13 @@
         <meta charset="UTF-8">
     </head>
     <body>
+        <h1>Spectrogram Thing</h1>
         <div>Click anywhere to start, if you choose screen share, make sure to check off "share audio".</div>
         <canvas id="spectrogram" width="600" height="750"></canvas>
         <canvas id="oscilliscope" width="600" height="100"></canvas>
         <!--canvas id="oscilliscope-2d" width="600" height="600"></canvas-->
-        <div><span>Spectrogram Gain: </span><input type="range" id="spec-gain-slider" min="-50" max="50" step="0.1" value="0"></div>
-        <div><span>Spectrogram Range Scale: </span><input type="range" id="spec-range-slider" min="-50" max="50" step="0.1" value="0"></div>
+        <div><span>Spectrogram Gain: </span><input type="range" id="spec-gain-slider" min="-100" max="100" step="1" value="0"></div>
+        <div><span>Spectrogram Contrast: </span><input type="range" id="spec-range-slider" min="-150" max="200" step="1" value="0"></div>
         <div><span>Oscilliscope Gain: </span><input type="range" id="osc-gain-slider" min="-3" max="3" step="0.1" value="0"></div>
     </body>
 </html>

@@ -15,6 +15,7 @@ import Color from "./color.js";
 /**@type {HTMLInputElement}*/ var specGainInput;
 /**@type {HTMLInputElement}*/ var specRangeInput;
 /**@type {HTMLInputElement}*/ var oscGainInput;
+/**@type {HTMLInputElement}*/ var bpmInput;
 
 /**@type {Color}*/ var bgColor = new Color(0x000000);
 /**@type {Color[]}*/ var intensityColorMap = [0x020024,0x101358,0x090979,0x023af2,0x0cbbd0,0x0ff486,0xb5eb51,0xfff14b,0xffa369,0xffc0c0,0xffffff].map(v=>new Color(v));
@@ -29,6 +30,7 @@ function init() {
     specGainInput = document.getElementById("spec-gain-slider");
     specRangeInput = document.getElementById("spec-range-slider");
     oscGainInput = document.getElementById("osc-gain-slider");
+    bpmInput = document.getElementById("bpm-input");
 }
 async function actxInit(e) {
     console.log("init audio");
@@ -75,7 +77,10 @@ async function actxInit(e) {
 }
 
 var f = 1;
+var t = Date.now(), dt = 0;
+var bpm = 120;
 function loop() {
+    var newT = Date.now(); dt = newT - t; t = newT; bpm = bpmInput.valueAsNumber;
     document.body.style.background = bgColor.hex;
 
     spectrogramDrawer.clearMatrixStack();
@@ -87,7 +92,8 @@ function loop() {
 
         const nChunks = 750;
         const chunkRenderSize = height/nChunks;
-        spectrogramDrawer.ctx.drawImage(spectrogramDrawer.canvas,-chunkRenderSize,0);
+        const chunkWidth = Math.round(chunkRenderSize * (dt/10));
+        spectrogramDrawer.ctx.drawImage(spectrogramDrawer.canvas,-chunkWidth,0);
 
         var data = getLogFFTData(nChunks,25*f,10000*f);
         var rangeScale = parseFloat(specRangeInput.value), powerScale = parseFloat(specGainInput.value);
@@ -98,7 +104,8 @@ function loop() {
             //var color = `hsl(${Math.floor(360*data[i])},100%,50%)`;
             //var color = new Color(Math.floor(255*data[i]),Math.floor(255*data[i]),Math.floor(255*data[i])).hex
             var color = getIntensityColor(data[i]).hex;
-            spectrogramDrawer.fillRect(width-chunkRenderSize,height-(i+1)*chunkRenderSize,chunkRenderSize,chunkRenderSize,color);
+            if (i < 10) color = (t*bpm/60000)%1 > 0.5?"#ffffff":"#000000"
+            spectrogramDrawer.fillRect(width-chunkWidth,height-(i+1)*chunkRenderSize,chunkWidth,chunkRenderSize,color);
         }
 
         const nSamples = 1000;
